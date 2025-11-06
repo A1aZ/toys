@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AppKit
 
 struct ContentView: View {
     @State private var selectedPDFURL: URL?
@@ -161,9 +162,11 @@ struct ContentView: View {
                         progress = 0
                         
                         if success {
-                            displayAlert(title: "成功", message: "PDF 已成功转换为长图！\n保存位置: \(outputURL.path)")
+                            // 打开保存位置
+                            NSWorkspace.shared.activateFileViewerSelecting([outputURL])
+                            displayAlert(title: "转换成功", message: "PDF 已成功转换为长图！\n文件已保存。")
                         } else {
-                            displayAlert(title: "失败", message: "转换失败，请检查 PDF 文件是否有效。")
+                            displayAlert(title: "转换失败", message: "转换失败，请检查 PDF 文件是否有效或是否有足够的磁盘空间。")
                         }
                     }
                 }

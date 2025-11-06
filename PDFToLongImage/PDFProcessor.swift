@@ -171,8 +171,31 @@ class PDFProcessor {
     ///   - scale: 缩放比例
     /// - Returns: 是否成功
     static func convertPDFToLongImage(pdfURL: URL, outputURL: URL, scale: CGFloat = 2.0) -> Bool {
-        guard let images = convertPDFToImages(pdfURL: pdfURL, scale: scale),
-              let longImage = combineImagesVertically(images: images) else {
+        // 验证输入文件存在
+        guard FileManager.default.fileExists(atPath: pdfURL.path) else {
+            print("错误: PDF 文件不存在")
+            return false
+        }
+        
+        // 验证输出目录可写
+        let outputDir = outputURL.deletingLastPathComponent()
+        guard FileManager.default.isWritableFile(atPath: outputDir.path) else {
+            print("错误: 输出目录不可写")
+            return false
+        }
+        
+        guard let images = convertPDFToImages(pdfURL: pdfURL, scale: scale) else {
+            print("错误: 无法将 PDF 转换为图片")
+            return false
+        }
+        
+        guard !images.isEmpty else {
+            print("错误: PDF 文件没有有效页面")
+            return false
+        }
+        
+        guard let longImage = combineImagesVertically(images: images) else {
+            print("错误: 无法拼接图片")
             return false
         }
         
