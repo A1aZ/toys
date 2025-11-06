@@ -14,6 +14,5 @@ struct PDFToLongImageApp: App {
             ContentView()
         }
         .windowStyle(.hiddenTitleBar)
-        .windowResizability(.contentSize)
     }
 }
