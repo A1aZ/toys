@@ -30,31 +30,44 @@ class PDFProcessor {
             }
             
             let pageRect = page.bounds(for: .mediaBox)
-            let renderer = NSBitmapImageRep(
+            let scaledWidth = Int(pageRect.width * scale)
+            let scaledHeight = Int(pageRect.height * scale)
+            
+            // 使用更稳定的渲染方法
+            guard let imageRep = NSBitmapImageRep(
                 bitmapDataPlanes: nil,
-                pixelsWide: Int(pageRect.width * scale),
-                pixelsHigh: Int(pageRect.height * scale),
+                pixelsWide: scaledWidth,
+                pixelsHigh: scaledHeight,
                 bitsPerSample: 8,
                 samplesPerPixel: 4,
                 hasAlpha: true,
                 isPlanar: false,
-                colorSpaceName: .calibratedRGB,
-                bytesPerRow: 0,
-                bitsPerPixel: 0
-            )
-            
-            guard let imageRep = renderer else {
+                colorSpaceName: .deviceRGB,
+                bytesPerRow: scaledWidth * 4,
+                bitsPerPixel: 32
+            ) else {
                 continue
             }
             
-            let context = NSGraphicsContext(bitmapImageRep: imageRep)
-            NSGraphicsContext.saveGraphicsState()
-            NSGraphicsContext.current = context
+            let graphicsContext = NSGraphicsContext(bitmapImageRep: imageRep)
             
-            context?.cgContext.scaleBy(x: scale, y: scale)
-            page.draw(with: .mediaBox, to: context!.cgContext)
-            
-            NSGraphicsContext.restoreGraphicsState()
+            // 使用 autoreleasepool 来管理内存
+            autoreleasepool {
+                NSGraphicsContext.saveGraphicsState()
+                NSGraphicsContext.current = graphicsContext
+                
+                // 设置背景为白色
+                NSColor.white.setFill()
+                NSRect(x: 0, y: 0, width: CGFloat(scaledWidth), height: CGFloat(scaledHeight)).fill()
+                
+                // 缩放上下文
+                graphicsContext?.cgContext.scaleBy(x: scale, y: scale)
+                
+                // 绘制 PDF 页面
+                page.draw(with: .mediaBox, to: graphicsContext!.cgContext)
+                
+                NSGraphicsContext.restoreGraphicsState()
+            }
             
             let image = NSImage(size: pageRect.size)
             image.addRepresentation(imageRep)
@@ -81,24 +94,51 @@ class PDFProcessor {
             maxWidth = max(maxWidth, image.size.width)
         }
         
-        // 创建新的图片
-        let combinedImage = NSImage(size: NSSize(width: maxWidth, height: totalHeight))
-        combinedImage.lockFocus()
-        
-        var currentY: CGFloat = totalHeight
-        
-        for image in images {
-            let rect = NSRect(
-                x: (maxWidth - image.size.width) / 2,  // 居中对齐
-                y: currentY - image.size.height,
-                width: image.size.width,
-                height: image.size.height
-            )
-            image.draw(in: rect)
-            currentY -= image.size.height
+        // 创建位图表示
+        let combinedSize = NSSize(width: maxWidth, height: totalHeight)
+        guard let combinedRep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: Int(maxWidth),
+            pixelsHigh: Int(totalHeight),
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: Int(maxWidth) * 4,
+            bitsPerPixel: 32
+        ) else {
+            return nil
         }
         
-        combinedImage.unlockFocus()
+        let graphicsContext = NSGraphicsContext(bitmapImageRep: combinedRep)
+        
+        autoreleasepool {
+            NSGraphicsContext.saveGraphicsState()
+            NSGraphicsContext.current = graphicsContext
+            
+            // 设置白色背景
+            NSColor.white.setFill()
+            NSRect(origin: .zero, size: combinedSize).fill()
+            
+            var currentY: CGFloat = totalHeight
+            
+            for image in images {
+                let rect = NSRect(
+                    x: (maxWidth - image.size.width) / 2,  // 居中对齐
+                    y: currentY - image.size.height,
+                    width: image.size.width,
+                    height: image.size.height
+                )
+                image.draw(in: rect)
+                currentY -= image.size.height
+            }
+            
+            NSGraphicsContext.restoreGraphicsState()
+        }
+        
+        let combinedImage = NSImage(size: combinedSize)
+        combinedImage.addRepresentation(combinedRep)
         
         return combinedImage
     }
